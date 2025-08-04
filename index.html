@@ -6,8 +6,6 @@
     <title>SiteSuprise</title>
 </head>
 <body>
-    <h1>SiteSuprise</h1>
-    <div id="api-content">Loading...</div>
     <script>
         (async () => {
             try {
@@ -17,7 +15,7 @@
                     }
                 });
                 const html = await response.text();
-                document.getElementById('api-content').innerHTML = html;
+                document.body.innerHTML = html;
             } catch (error) {
                 document.getElementById('api-content').textContent = 'Error loading surprise site.';
             }
