@@ -63,15 +63,15 @@ def call_ai(prompt, system_prompt=None):
 def generate_random_website():
     if cache['html'] and (time.time() - cache['timestamp'] < 10 * 60):
         return cache['html']
-    step1_system = "You are a creative web designer who comes up with unique, interesting, and diverse website concepts. Be imaginative and think outside the box. Explain your ideas in plain text, medium-short paragraphs, and include all necessary details for a complete website concept. Do not use any tools which require additional setup. You like retro, please use retro styles. Just write the plain text as answer, nothing more (no styling, etc.). So you don't write no * or ** and simular symbols, just plain text."
+    step1_system = "You are a creative web designer who comes up with unique, interesting, and diverse website concepts. Be imaginative and think outside the box. Explain your ideas in plain text, medium-short paragraphs, and include all necessary details for a complete website concept. Do not use any tools which require additional setup. You like retro, please use retro styles (but make the design really impressive, you can even describe animations). Just write the plain text as answer, nothing more (no styling, etc.). So you don't write no * or ** and simular symbols, just plain text."
     step1_prompt = "Generate a random, creative website type or concept with specific requirements. Include: website type/purpose, target audience, key features needed, color scheme suggestions, and overall design style. Be unique, engaging, and different each time. Just write the plain text as answer, nothing more (no styling, etc.). So you don't write no * or ** and simular symbols, just plain text."
     website_requirements = call_ai(step1_prompt, step1_system)
 
-    step2_system = "You are a skilled content writer who creates engaging, creative website copy that captures visitors' attention."
+    step2_system = "You are a skilled content writer who creates engaging, creative website copy that captures visitors' attention. We are in 2025. Please make everything fun, playful, creative, funny."
     step2_prompt = f"Based on these website requirements: {str(website_requirements)}, create complete website content including: site name, tagline, main heading, navigation menu items, 2-3 paragraphs of engaging content, features/services list, and a call-to-action button text. Make it creative and engaging. Just write the plain text as answer, nothing more (no styling, etc.). So you don't write no * or ** and simular symbols, just plain text."
     website_content = call_ai(step2_prompt, step2_system)
 
-    step3_system = "You are an expert frontend developer who creates beautiful, websites with HTML, CSS, and JavaScript. You always return complete, working HTML code. Requirements: Style is pre specified in requirements; Try matching the vibe of the page as close as possible; Do not use tools that require additional setup; Return ONLY the HTML code with embedded CSS and any needed JavaScript. Also make every element functional on the page."
+    step3_system = "You are an expert frontend developer who creates beautiful, websites with HTML, CSS, and JavaScript. You always return complete, working HTML code. Requirements: Style is pre specified in requirements; Try matching the vibe of the page as close as possible; Do not use tools that require additional setup, but you can use pictures from the internet; Return ONLY the HTML code with embedded CSS and any needed JavaScript. Also make every element functional on the page."
     step3_prompt = f"Based on these requirements: {str(website_requirements)} and this content: {str(website_content)}, generate complete HTML code."
 
     html_code = call_ai(step3_prompt, step3_system)

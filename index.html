@@ -4,20 +4,96 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SiteSuprise</title>
+    <style>
+        .loading-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            z-index: 9999;
+        }
+
+        .spinner {
+            width: 60px;
+            height: 60px;
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top: 4px solid #ffffff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+
+        .loading-text {
+            color: white;
+            font-family: 'Arial', sans-serif;
+            font-size: 18px;
+            font-weight: 300;
+            letter-spacing: 2px;
+            animation: pulse 1.5s ease-in-out infinite alternate;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @keyframes pulse {
+            0% { opacity: 0.6; }
+            100% { opacity: 1; }
+        }
+
+        .content {
+            display: none;
+        }
+
+        .fade-out {
+            opacity: 0;
+            transition: opacity 0.5s ease-out;
+        }
+    </style>
 </head>
 <body>
+    <div id="loading" class="loading-container">
+        <div class="spinner"></div>
+        <div class="loading-text">Generating your surprise site...</div>
+    </div>
+
+    <div id="content" class="content"></div>
+
     <script>
         (async () => {
             try {
-                const response = await fetch('https://https://sitesuprise.deakteri.fun/', {
+                const response = await fetch('https://sitesuprise.deakteri.fun/', {
                     headers: {
                         'Accept': 'text/html'
                     }
                 });
                 const html = await response.text();
-                document.body.innerHTML = html;
+                
+                const loadingElement = document.getElementById('loading');
+                const contentElement = document.getElementById('content');
+                
+                loadingElement.classList.add('fade-out');
+                
+                setTimeout(() => {
+                    loadingElement.style.display = 'none';
+                    contentElement.innerHTML = html;
+                    contentElement.style.display = 'block';
+                }, 500);
+                
             } catch (error) {
-                document.getElementById('api-content').textContent = 'Error loading surprise site.';
+                const loadingElement = document.getElementById('loading');
+                const contentElement = document.getElementById('content');
+                
+                loadingElement.style.display = 'none';
+                contentElement.innerHTML = '<div style="text-align: center; margin-top: 50px; font-family: Arial; color: #666;">Error loading surprise site. Please try again.</div>';
+                contentElement.style.display = 'block';
             }
         })();
     </script>
