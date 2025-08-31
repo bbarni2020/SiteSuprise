@@ -5,12 +5,90 @@ import json
 import random
 import time
 import os
+import base64
+from urllib.parse import urlparse
 
 app = Flask(__name__)
 app.config['ENV'] = os.environ.get('FLASK_ENV', 'production')
 app.config['DEBUG'] = os.environ.get('FLASK_DEBUG', 'False').lower() == 'true'
 
 cache = {'html': None, 'timestamp': 0}
+validated_url_cache = {}
+
+
+def _make_svg_placeholder(text='Image unavailable', width=640, height=360):
+    svg = f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}">
+  <rect width="100%" height="100%" fill="#ddd"/>
+  <text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="20" fill="#666">{text}</text>
+</svg>'''
+    b64 = base64.b64encode(svg.encode('utf-8')).decode('ascii')
+    return f"data:image/svg+xml;base64,{b64}"
+
+
+PLACEHOLDER_DATA_URI = _make_svg_placeholder()
+
+
+def _is_remote_url(url):
+    if not url:
+        return False
+    parsed = urlparse(url)
+    if parsed.scheme in ('http', 'https'):
+        return True
+    return False
+
+
+def _url_exists(url, timeout=5):
+    if not url or url.startswith('data:'):
+        return True
+    if not _is_remote_url(url):
+        return True
+    if url in validated_url_cache:
+        return validated_url_cache[url]
+    try:
+        resp = requests.head(url, allow_redirects=True, timeout=timeout, verify=False)
+        exists = resp.status_code < 400
+        if not exists:
+            resp = requests.get(url, stream=True, timeout=timeout, verify=False)
+            exists = resp.status_code < 400
+    except Exception:
+        exists = False
+    validated_url_cache[url] = exists
+    return exists
+
+
+def _process_images_in_html(html):
+    def replace_img(match):
+        prefix = match.group(1)
+        quote = match.group(2)
+        src = match.group(3)
+        new_src = src
+        if not _url_exists(src):
+            new_src = PLACEHOLDER_DATA_URI
+        replacement = f"{prefix}{quote}{new_src}{quote}"
+        return replacement
+
+    html = re.sub(r'(<img\b[^>]*\bsrc\s*=\s*)(["\'])(.*?)\2', replace_img, html, flags=re.IGNORECASE | re.DOTALL)
+
+    def add_onerror(match):
+        tag = match.group(0)
+        if re.search(r'onerror\s*=\s*', tag, flags=re.IGNORECASE):
+            return tag
+        insert_at = -1
+        onerror_attr = f" onerror=\"this.onerror=null;this.src='{PLACEHOLDER_DATA_URI}';\""
+        new_tag = tag[:-1] + onerror_attr + tag[-1]
+        return new_tag
+
+    html = re.sub(r'<img\b[^>]*>', add_onerror, html, flags=re.IGNORECASE)
+    def replace_css_url(match):
+        quote = match.group(1) or ''
+        url = match.group(2).strip()
+        if not _url_exists(url):
+            return f"url('{PLACEHOLDER_DATA_URI}')"
+        return f"url({quote}{url}{quote})"
+
+    html = re.sub(r'url\(\s*([\'\"]?)(.*?)\1\s*\)', replace_css_url, html, flags=re.IGNORECASE)
+
+    return html
 @app.after_request
 def add_cors_headers(response):
     response.headers['Access-Control-Allow-Origin'] = '*'
@@ -88,13 +166,24 @@ def generate_random_website():
     step2_prompt = f"Based on these website requirements: {str(website_requirements)}, create complete website content including: site name, tagline, main heading, navigation menu items, 2-3 paragraphs of engaging content, features/services list, and a call-to-action button text. Make it creative and engaging. Just write the plain text as answer, nothing more (no styling, etc.). So you don't write no * or ** and simular symbols, just plain text."
     website_content = call_ai(step2_prompt, step2_system)
 
-    step3_system = "You are an expert frontend developer who creates beautiful, websites with HTML, CSS, and JavaScript. You always return complete, working HTML code (without comments). Requirements: Style is pre specified in requirements; Try matching the vibe of the page as close as possible; Do not use tools that require additional setup, instead you can use svgs written in the code; Return ONLY the HTML code with embedded CSS and any needed JavaScript. Also make every element functional on the page. Make sure that this will be in a one single HTML file, you only create single file programs. Don't halucinate any assets, because there isn't any. And for footnote always add: SiteSuprise by Barnabás (MasterBros Developers)"
+    step3_system = (
+        "You are an expert frontend developer who creates beautiful websites with HTML, CSS, and JavaScript. "
+        "You always return complete, working HTML code (without comments). Requirements: Style is pre-specified in requirements; try matching the vibe of the page as closely as possible. "
+        "Do NOT reference or link to any external assets (no external images, fonts, or scripts). If the design requires graphics, icons, or pictures, embed them directly using inline SVG markup or data-URI images only. "
+        "Prefer raw inline <svg> elements placed in the HTML where needed, or data:image/svg+xml;base64 URIs for backgrounds—do not output <img src=\"http...\"> to external URLs. "
+        "Return ONLY the HTML code with embedded CSS and any needed JavaScript. Make every element functional on the page. Ensure the result is a single-file program with no external dependencies. "
+        "Do not hallucinate assets because there aren't any. For the page footer, always add: SiteSuprise by Barnabás (MasterBros Developers)"
+    )
     step3_prompt = f"Based on these requirements: {str(website_requirements)} and this content: {str(website_content)}, generate complete HTML code."
 
     html_code = call_ai(step3_prompt, step3_system)
     sanitized = re.sub(r'^```\w*', '', html_code)
     sanitized = re.sub(r'```$', '', sanitized)
     sanitized = sanitized.strip()
+    try:
+        sanitized = _process_images_in_html(sanitized)
+    except Exception:
+        pass
     cache['html'] = sanitized
     cache['timestamp'] = time.time()
     return sanitized
