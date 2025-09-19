@@ -143,11 +143,24 @@ def call_ai(prompt, system_prompt=None, is_code=False):
 
 @app.route('/', methods=['GET'])
 def generate_random_website():
-    if cache['html'] and (time.time() - cache['timestamp'] < 10 * 60):
+    from flask import request
+    page_id = request.args.get('page')
+    
+    if page_id:
+        return generate_website_content(page_context=page_id)
+    
+    return generate_website_content()
+
+def generate_website_content(page_context=None):
+    if not page_context and cache['html'] and (time.time() - cache['timestamp'] < 10 * 60):
         return cache['html']
     
     ideas_system = "You are a creative web design historian who specializes in pre-2000 internet culture and website concepts. Generate diverse, authentic retro website ideas that capture the spirit of different eras from the 1980s to 1999."
-    ideas_prompt = "Generate exactly 10 unique retro website concepts from before the year 2000. Each should represent different eras, purposes, and design styles from the 1980s-1990s. Return ONLY a valid JSON array with objects containing: id, era, type, purpose, target_audience, and brief_description. Make each concept historically authentic and diverse."
+    
+    if page_context:
+        ideas_prompt = f"Generate exactly 5 unique retro website concepts from before the year 2000 that would be related or linked from a page about '{page_context}'. Each should represent different eras, purposes, and design styles from the 1980s-1990s. Return ONLY a valid JSON array with objects containing: id, era, type, purpose, target_audience, and brief_description. Make each concept historically authentic and diverse."
+    else:
+        ideas_prompt = "Generate exactly 10 unique retro website concepts from before the year 2000. Each should represent different eras, purposes, and design styles from the 1980s-1990s. Return ONLY a valid JSON array with objects containing: id, era, type, purpose, target_audience, and brief_description. Make each concept historically authentic and diverse."
     
     try:
         ideas_response = call_ai(ideas_prompt, ideas_system)
@@ -172,6 +185,10 @@ def generate_random_website():
         "Do NOT reference or link to any external assets (no external images, fonts, or scripts). If the design requires graphics, icons, or pictures, embed them directly using inline SVG markup or data-URI images only. "
         "Prefer raw inline <svg> elements placed in the HTML where needed, or data:image/svg+xml;base64 URIs for backgrounds—do not output <img src=\"http...\"> to external URLs. "
         "Return ONLY the HTML code with embedded CSS and any needed JavaScript. Make every element functional on the page. Ensure the result is a single-file program with no external dependencies. "
+        "CRITICAL: When creating buttons, links, or interactive elements that should navigate to other pages, use EXACTLY this format: "
+        'onclick="window.location.href=\'?page=page-name-here\'" where page-name-here is a descriptive name for what the button does (use hyphens, no spaces). '
+        "Examples: onclick=\"window.location.href='?page=about-us'\" or onclick=\"window.location.href='?page=contact-form'\" or onclick=\"window.location.href='?page=product-catalog'\" "
+        "Make sure ALL navigation buttons use this EXACT pattern. Do not use any other navigation methods. "
         "Do not hallucinate assets because there aren't any. For the page footer, always add: SiteSuprise by Barnabás (MasterBros Developers)"
     )
     step3_prompt = f"Based on these requirements: {str(website_requirements)} and this content: {str(website_content)}, generate complete HTML code."
@@ -184,8 +201,11 @@ def generate_random_website():
         sanitized = _process_images_in_html(sanitized)
     except Exception:
         pass
-    cache['html'] = sanitized
-    cache['timestamp'] = time.time()
+    
+    if not page_context:
+        cache['html'] = sanitized
+        cache['timestamp'] = time.time()
+    
     return sanitized
 
 application = app

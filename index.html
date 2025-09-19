@@ -115,40 +115,116 @@
     <div id="content" class="content"></div>
 
     <script>
+        let isLoading = false;
+
+        function showLoading() {
+            if (isLoading) return;
+            isLoading = true;
+            const loadingElement = document.getElementById('loading');
+            const contentElement = document.getElementById('content');
+            loadingElement.style.display = 'flex';
+            contentElement.style.display = 'none';
+            document.getElementById('loadingText').textContent = 'Loading your new surprise...';
+        }
+
+        function hideLoading() {
+            isLoading = false;
+            const loadingElement = document.getElementById('loading');
+            loadingElement.classList.add('fade-out');
+            setTimeout(() => {
+                loadingElement.style.display = 'none';
+            }, 500);
+        }
+
+        async function loadPage(pageId = null) {
+            showLoading();
+            
+            if (pageId) {
+                document.getElementById('loadingText').textContent = `Generating ${pageId.replace(/-/g, ' ')} site for you...`;
+            } else {
+                document.getElementById('loadingText').textContent = 'Generating your surprise site...';
+            }
+            
+            try {
+                let apiUrl = 'https://sitesuprise.deakteri.fun/';
+                if (pageId) {
+                    apiUrl = `https://sitesuprise.deakteri.fun/?page=${encodeURIComponent(pageId)}`;
+                    const newUrl = `?page=${encodeURIComponent(pageId)}`;
+                    window.history.pushState({pageId}, '', newUrl);
+                }
+                
+                const response = await fetch(apiUrl, {
+                    headers: { 'Accept': 'text/html' }
+                });
+                const html = await response.text();
+                
+                const contentElement = document.getElementById('content');
+                hideLoading();
+                
+                setTimeout(() => {
+                    contentElement.innerHTML = html;
+                    contentElement.style.display = 'block';
+                    
+                    contentElement.addEventListener('click', (e) => {
+                        console.log('Click detected on:', e.target);
+                        console.log('Target onclick:', e.target.getAttribute('onclick'));
+                        
+                        const element = e.target;
+                        const onclickAttr = element.getAttribute('onclick');
+                        
+                        if (onclickAttr && onclickAttr.includes('window.location.href')) {
+                            e.preventDefault();
+                            console.log('Found navigation onclick:', onclickAttr);
+
+                            const match = onclickAttr.match(/\?page=([^'"\)]+)/);
+                            if (match) {
+                                const pageId = decodeURIComponent(match[1]);
+                                console.log('Navigating to page:', pageId);
+                                loadPage(pageId);
+                                return;
+                            }
+                        }
+                        
+                        if (element.tagName === 'A' && element.href) {
+                            const url = new URL(element.href);
+                            if (url.hostname !== window.location.hostname) {
+                                e.preventDefault();
+                                window.open(element.href, '_blank');
+                            }
+                        }
+                    });
+                }, 500);
+                
+            } catch (error) {
+                hideLoading();
+                setTimeout(() => {
+                    const contentElement = document.getElementById('content');
+                    contentElement.innerHTML = '<div style="text-align: center; margin-top: 50px; font-family: Arial; color: #666;">Error loading surprise site. Please try again.</div>';
+                    contentElement.style.display = 'block';
+                }, 500);
+            }
+        }
+        window.addEventListener('popstate', (event) => {
+            if (event.state && event.state.pageId) {
+                loadPage(event.state.pageId);
+            } else {
+                loadPage();
+            }
+        });
+
         setTimeout(() => {
             const loadingText = document.getElementById('loadingText');
             loadingText.textContent = 'Generating your surprise site...';
         }, 5000);
 
-        (async () => {
-            try {
-                const response = await fetch('https://sitesuprise.deakteri.fun/', {
-                    headers: {
-                        'Accept': 'text/html'
-                    }
-                });
-                const html = await response.text();
-                
-                const loadingElement = document.getElementById('loading');
-                const contentElement = document.getElementById('content');
-                
-                loadingElement.classList.add('fade-out');
-                
-                setTimeout(() => {
-                    loadingElement.style.display = 'none';
-                    contentElement.innerHTML = html;
-                    contentElement.style.display = 'block';
-                }, 500);
-                
-            } catch (error) {
-                const loadingElement = document.getElementById('loading');
-                const contentElement = document.getElementById('content');
-                
-                loadingElement.style.display = 'none';
-                contentElement.innerHTML = '<div style="text-align: center; margin-top: 50px; font-family: Arial; color: #666;">Error loading surprise site. Please try again.</div>';
-                contentElement.style.display = 'block';
-            }
-        })();
+        const urlParams = new URLSearchParams(window.location.search);
+        const pageId = urlParams.get('page');
+        
+        if (pageId) {
+            loadPage(pageId);
+        } else {
+            loadPage();
+        }
     </script>
 </body>
 </html>
